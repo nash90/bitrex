@@ -1,1 +1,1 @@
-while true ; do sh ./run.sh & sleep 5; done
+while true ; do sh ./run.sh & sleep 10; done
