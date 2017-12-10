@@ -25,6 +25,8 @@ $trade_count = 0;
 $stop_buy_after_risk_max_count = 1;
 $stop_buy_after_risk = false;
 
+$file_risk_count = 'risk_sell_logic_count.txt';
+
 // ALL Function available 
 
 function bittrexbalance($apikey, $apisecret, $currency){
@@ -210,8 +212,9 @@ if(count($open_order_obj["result"]) > 0 ){
     }
 
 
-$run_risk_count = getenv('RUN_RISK_SELL_LOGIC_COUNT');
-if($run_risk_count > $stop_buy_after_risk_max_count){
+//$run_risk_count = getenv('RUN_RISK_SELL_LOGIC_COUNT');$file = file_get_contents('myfile.txt');
+$run_risk_count = (int) file_get_contents($file_risk_count);   
+if($run_risk_count >= $stop_buy_after_risk_max_count){
     $stop_buy_after_risk = true;
 }
 
@@ -281,7 +284,8 @@ function run_risk_sell_logic($count_flag){
         riskSellAction($apikey, $apisecret, $default_currency, $target_currency, $sell_quantity, $current_rate);
         if($count_flag){
                 $run_risk_count = $run_risk_count + 1;
-                putenv("RUN_RISK_SELL_LOGIC_COUNT=".$run_risk_count);
+                //putenv("RUN_RISK_SELL_LOGIC_COUNT=".$run_risk_count);
+                file_put_contents($file_risk_count,$run_risk_count);
                 echo("RUN_RISK_SELL_LOGIC_COUNT  was increased to :".$run_risk_count."\n");
         }
     }
