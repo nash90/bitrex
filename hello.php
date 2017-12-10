@@ -14,7 +14,7 @@ $target_currency = 'MONA';
 
 $buy_rate = 0.0009;
 $sale_rate = 0.00093;
-$avoid_rate = 0.00093;
+$avoid_rate = 0.00085;
 $current_rate = 0;
 
 $default_balance = 0.001;
@@ -227,7 +227,7 @@ echo("Open order size is  : ".count($open_order_obj["result"])."     ");
 echo("Open order flag is : ".json_encode($open_order)."\n\n");
 echo("Buy Flag : ".json_encode($buy)."     ");
 echo("Sale Flag : ".json_encode($sell)."\n");
-echo("Buy Quantity : ".getBuyQuantity($buy_rate, $default_balance)."     ");
+echo("Approx Buy Quantity : ".getBuyQuantity($buy_rate, $default_balance)."     ");
 echo("Sell Quantity : ".getSellQuantity($sale_rate, $target_balance)."\n");
 echo("RUN_RISK_SELL_LOGIC_COUNT :".$run_risk_count."     ");
 echo("stop run risk flag :".json_encode($stop_buy_after_risk)."\n");
@@ -235,7 +235,7 @@ echo("stop run risk flag :".json_encode($stop_buy_after_risk)."\n");
 if($open_order) {
     echo("open order already exists!!! \n");
     print_r($open_order_obj);
-    if($run_risk_sell_logic && $current_rate < $avoid_rate && $buy){
+    if($run_risk_sell_logic && $current_rate < $avoid_rate){
         foreach ($open_order_result as $key) {
             $order_id = $key["OrderUuid"];
             $cancel_order = cancel_open_order($apikey, $apisecret, $order_id);
@@ -244,7 +244,9 @@ if($open_order) {
             }
 
         }
-        run_risk_sell_logic(false);
+        if($sell){
+            run_risk_sell_logic(false);
+        }
 
     }
     echo("\n######### END BOT ############\n");
@@ -274,7 +276,7 @@ function run_sell_logic(){
 function run_risk_sell_logic($count_flag){
     global $apikey, $apisecret, $default_currency, $target_currency, $target_balance, $run_risk_count;
     global $current_rate, $sale_rate, $avoid_rate, $open_order, $sell;
-    if($current_rate < $avoid_rate && !$open_order && $sell){
+    if($current_rate <= $avoid_rate && !$open_order && $sell){
         $sell_quantity = getSellQuantity($avoid_rate, $target_balance);
         riskSellAction($apikey, $apisecret, $default_currency, $target_currency, $sell_quantity, $current_rate);
         if($count_flag){
