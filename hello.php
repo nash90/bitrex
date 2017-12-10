@@ -10,14 +10,15 @@ $apikey=getenv('BITREX_API_KEY');
 $apisecret=getenv('BITREX_API_SECRET');
 
 $default_currency = 'BTC';
-$target_currency = 'MONA';
+$target_currency = 'LTC';
 
-$buy_rate = 0.0009;
-$sale_rate = 0.00093;
-$avoid_rate = 0.00085;
+$buy_rate = 0.0099;
+$sale_rate = 0.0100;
+$avoid_rate = 0.00975;
 $current_rate = 0;
 
-$default_balance = 0.001;
+//$default_balance = 0.001;
+$default_balance = 0.3;
 $target_balance = 0;
 
 $open_order = false;
@@ -26,6 +27,7 @@ $stop_buy_after_risk_max_count = 1;
 $stop_buy_after_risk = false;
 
 $file_risk_count = 'risk_sell_logic_count.txt';
+$file_processed_log = '';
 
 // ALL Function available 
 
@@ -181,6 +183,10 @@ function cancel_open_order($apikey, $apisecret, $order_id){
     print_r($obj);echo("cancel_open_order\n");
 
     return $obj;
+}
+
+function log_in_file($file_name, $content){
+    file_put_contents($file_name, $content, FILE_APPEND | LOCK_EX);
 }
 
 //Actions get balance
