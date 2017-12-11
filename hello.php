@@ -12,7 +12,7 @@ $apisecret=getenv('BITREX_API_SECRET');
 $default_currency = 'BTC';
 $target_currency = 'EMC2';
 
-$buy_rate = 0.0000986;
+$buy_rate = 0.000098;
 $sale_rate = 0.0001005;
 $avoid_rate = 0.000097;
 $current_rate = 0;
@@ -251,21 +251,46 @@ echo("stop run risk flag :".json_encode($stop_buy_after_risk)."\n");
 if($open_order) {
     echo("open order already exists!!! \n");
     print_r($open_order_obj);
-    if($run_risk_sell_logic && $current_rate <= $avoid_rate){
-        foreach ($open_order_result as $key) {
-            $order_id = $key["OrderUuid"];
-            $cancel_order = cancel_open_order($apikey, $apisecret, $order_id);
-            if(!$cancel_order){
-                echo "open order cancel api was failed !!!\n";
-            }
 
+    foreach($open_order_result as $key){
+        $order_id = $key["OrderUuid"];
+        if($key["OrderType"] == "LIMIT_SELL"){
+            if($run_risk_sell_logic && $current_rate <= $avoid_rate){
+                
+                $cancel_order = cancel_open_order($apikey, $apisecret, $order_id);
+                if($cancel_order["success"]){
+                    $open_order = false;
+                }
+
+                if($key["Limit"] <= $avoid_rate){
+                    //run_risk_sell_logic(false, true);
+                    
+                }else{
+                    run_risk_sell_logic(true, true);
+                }
+            }
+            if($run_sell_logic && $current_rate > $avoid_rate && $key["Limit"] !== $sale_rate){
+                $cancel_order = cancel_open_order($apikey, $apisecret, $order_id);
+                if($cancel_order["success"]){
+                    $open_order = false;
+                }
+
+                run_sell_logic(true);
+            }
         }
-        if($is_risk_sell_order){
-            //run_risk_sell_logic(false, true);
-        }else{
-            run_risk_sell_logic(true, true);
+
+        if($key["OrderType"] == "LIMIT_BUY"){
+            if($run_buy_logic && $key["Limit"] !== $buy_rate){
+                $cancel_order = cancel_open_order($apikey, $apisecret, $order_id);
+                if($cancel_order["success"]){
+                    $open_order = false;
+                }
+
+                run_buy_logic(true);
+            }
         }
     }
+
     echo("\n######### END BOT ############\n");
     exit;
 }
@@ -275,7 +300,7 @@ if($open_order) {
 function run_buy_logic($buy){
     global $apikey, $apisecret, $default_currency, $target_currency, $default_balance;
     global $current_rate, $buy_rate, $avoid_rate, $open_order;
-    if($current_rate <= $buy_rate && $current_rate > $avoid_rate && !$open_order && $buy) {
+    if(/*$current_rate <= $buy_rate &&*/ $current_rate > $avoid_rate && !$open_order && $buy) {
         $buy_quantity = getBuyQuantity($buy_rate, $default_balance);
         buyAction($apikey, $apisecret, $default_currency, $target_currency, $buy_quantity, $buy_rate);
     }
