@@ -10,15 +10,15 @@ $apikey=getenv('BITREX_API_KEY');
 $apisecret=getenv('BITREX_API_SECRET');
 
 $default_currency = 'BTC';
-$target_currency = 'LTC';
+$target_currency = 'EMC2';
 
-$buy_rate = 0.0099;
-$sale_rate = 0.0100;
-$avoid_rate = 0.00975;
+$buy_rate = 0.0001000;
+$sale_rate = 0.0001025;
+$avoid_rate = 0.00010;
 $current_rate = 0;
 
 //$default_balance = 0.001;
-$default_balance = 0.3;
+$default_balance = 0.295;
 $target_balance = 0;
 
 $open_order = false;
@@ -210,6 +210,12 @@ $current_rate = getMarketInfo($default_currency, $target_currency);
 $open_order_obj = getOpenOrder($apikey, $apisecret, $default_currency, $target_currency);
 
 $open_order_result = $open_order_obj["result"];
+$is_risk_sell_order = false;
+foreach ($open_order_result as $key) {
+    if($key["Limit"] <= $avoid_rate){
+        $is_risk_sell_order = true;
+    }
+}
 
 if(count($open_order_obj["result"]) > 0 ){
         $open_order = true; 
@@ -232,8 +238,9 @@ echo("My sale rate in BTC is : ".$sale_rate."\n");
 echo("My avoid rate in BTC is : ".$avoid_rate."\n\n");
 echo("My default balance in ".$default_currency.' : '.$default_balance."\n");
 echo("My target balance in ".$target_currency.' : '.$target_balance."\n\n");
-echo("Open order size is  : ".count($open_order_obj["result"])."     ");
-echo("Open order flag is : ".json_encode($open_order)."\n\n");
+echo("Open order size : ".count($open_order_result)."     ");
+echo("is risk sell order? : ".json_encode($is_risk_sell_order)."     ");
+echo("Open order flag : ".json_encode($open_order)."\n\n");
 echo("Buy Flag : ".json_encode($buy)."     ");
 echo("Sale Flag : ".json_encode($sell)."\n");
 echo("Approx Buy Quantity : ".getBuyQuantity($buy_rate, $default_balance)."     ");
@@ -244,7 +251,7 @@ echo("stop run risk flag :".json_encode($stop_buy_after_risk)."\n");
 if($open_order) {
     echo("open order already exists!!! \n");
     print_r($open_order_obj);
-    if($run_risk_sell_logic && $current_rate < $avoid_rate){
+    if($run_risk_sell_logic && $current_rate <= $avoid_rate){
         foreach ($open_order_result as $key) {
             $order_id = $key["OrderUuid"];
             $cancel_order = cancel_open_order($apikey, $apisecret, $order_id);
@@ -253,10 +260,11 @@ if($open_order) {
             }
 
         }
-        if($sell){
+        if($is_risk_sell_order){
             run_risk_sell_logic(false);
+        }else{
+            run_risk_sell_logic(true);
         }
-
     }
     echo("\n######### END BOT ############\n");
     exit;
@@ -276,14 +284,14 @@ function run_buy_logic(){
 function run_sell_logic(){
     global $apikey, $apisecret, $default_currency, $target_currency, $target_balance;
     global $current_rate, $sale_rate, $avoid_rate, $open_order, $sell;
-    if($current_rate >= $sale_rate && !$open_order && $sell){
+    if(/*$current_rate >= $sale_rate &&*/ !$open_order && $sell){
         $sell_quantity = getSellQuantity($sale_rate, $target_balance);
         sellAction($apikey, $apisecret, $default_currency, $target_currency, $sell_quantity, $sale_rate);
     }
 }
 
 function run_risk_sell_logic($count_flag){
-    global $apikey, $apisecret, $default_currency, $target_currency, $target_balance, $run_risk_count;
+    global $apikey, $apisecret, $default_currency, $target_currency, $target_balance, $run_risk_count, $file_risk_count;
     global $current_rate, $sale_rate, $avoid_rate, $open_order, $sell;
     if($current_rate <= $avoid_rate && !$open_order && $sell){
         $sell_quantity = getSellQuantity($avoid_rate, $target_balance);
@@ -291,7 +299,7 @@ function run_risk_sell_logic($count_flag){
         if($count_flag){
                 $run_risk_count = $run_risk_count + 1;
                 //putenv("RUN_RISK_SELL_LOGIC_COUNT=".$run_risk_count);
-                file_put_contents($file_risk_count,$run_risk_count);
+                file_put_contents($file_risk_count, $run_risk_count);
                 echo("RUN_RISK_SELL_LOGIC_COUNT  was increased to :".$run_risk_count."\n");
         }
     }
@@ -301,12 +309,12 @@ if($run_buy_logic && !$stop_buy_after_risk){
     run_buy_logic();
 }
 
-if($run_sell_logic){
-    run_sell_logic();
-}
-
 if($run_risk_sell_logic){
     run_risk_sell_logic(true);
+}
+
+if($run_sell_logic){
+    run_sell_logic();
 }
 
 echo("\n######### END BOT ############\n");
