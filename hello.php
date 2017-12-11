@@ -12,9 +12,9 @@ $apisecret=getenv('BITREX_API_SECRET');
 $default_currency = 'BTC';
 $target_currency = 'EMC2';
 
-$buy_rate = 0.0001000;
-$sale_rate = 0.0001025;
-$avoid_rate = 0.00010;
+$buy_rate = 0.0000986;
+$sale_rate = 0.0001005;
+$avoid_rate = 0.000097;
 $current_rate = 0;
 
 //$default_balance = 0.001;
@@ -261,9 +261,9 @@ if($open_order) {
 
         }
         if($is_risk_sell_order){
-            run_risk_sell_logic(false);
+            //run_risk_sell_logic(false, true);
         }else{
-            run_risk_sell_logic(true);
+            run_risk_sell_logic(true, true);
         }
     }
     echo("\n######### END BOT ############\n");
@@ -272,27 +272,27 @@ if($open_order) {
 
 
 
-function run_buy_logic(){
+function run_buy_logic($buy){
     global $apikey, $apisecret, $default_currency, $target_currency, $default_balance;
-    global $current_rate, $buy_rate, $avoid_rate, $open_order, $buy;
+    global $current_rate, $buy_rate, $avoid_rate, $open_order;
     if($current_rate <= $buy_rate && $current_rate > $avoid_rate && !$open_order && $buy) {
         $buy_quantity = getBuyQuantity($buy_rate, $default_balance);
         buyAction($apikey, $apisecret, $default_currency, $target_currency, $buy_quantity, $buy_rate);
     }
 }
 
-function run_sell_logic(){
+function run_sell_logic($sell){
     global $apikey, $apisecret, $default_currency, $target_currency, $target_balance;
-    global $current_rate, $sale_rate, $avoid_rate, $open_order, $sell;
+    global $current_rate, $sale_rate, $avoid_rate, $open_order;
     if(/*$current_rate >= $sale_rate &&*/ !$open_order && $sell){
         $sell_quantity = getSellQuantity($sale_rate, $target_balance);
         sellAction($apikey, $apisecret, $default_currency, $target_currency, $sell_quantity, $sale_rate);
     }
 }
 
-function run_risk_sell_logic($count_flag){
+function run_risk_sell_logic($count_flag, $sell){
     global $apikey, $apisecret, $default_currency, $target_currency, $target_balance, $run_risk_count, $file_risk_count;
-    global $current_rate, $sale_rate, $avoid_rate, $open_order, $sell;
+    global $current_rate, $sale_rate, $avoid_rate, $open_order;
     if($current_rate <= $avoid_rate && !$open_order && $sell){
         $sell_quantity = getSellQuantity($avoid_rate, $target_balance);
         riskSellAction($apikey, $apisecret, $default_currency, $target_currency, $sell_quantity, $current_rate);
@@ -306,15 +306,15 @@ function run_risk_sell_logic($count_flag){
 }
 
 if($run_buy_logic && !$stop_buy_after_risk){
-    run_buy_logic();
+    run_buy_logic($buy);
 }
 
 if($run_risk_sell_logic){
-    run_risk_sell_logic(true);
+    run_risk_sell_logic(true, $sell);
 }
 
 if($run_sell_logic){
-    run_sell_logic();
+    run_sell_logic($sell);
 }
 
 echo("\n######### END BOT ############\n");
