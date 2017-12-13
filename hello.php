@@ -10,15 +10,15 @@ $apikey=getenv('BITREX_API_KEY');
 $apisecret=getenv('BITREX_API_SECRET');
 
 $default_currency = 'BTC';
-$target_currency = 'EMC2';
+$target_currency = 'LTC';
 
-$buy_rate = 0.000098;
-$sale_rate = 0.0001005;
-$avoid_rate = 0.000097;
+$buy_rate = 0.0175;
+$sale_rate = 0.0182;
+$avoid_rate = 0.0155;
 $current_rate = 0;
 
 //$default_balance = 0.001;
-$default_balance = 0.295;
+$default_balance = 0.1;
 $target_balance = 0;
 
 $open_order = false;
@@ -190,19 +190,9 @@ function log_in_file($file_name, $content){
 }
 
 //Actions get balance
-//$default_balance = bittrexbalance($apikey, $apisecret, $default_currency);
+$remote_balance = bittrexbalance($apikey, $apisecret, $default_currency);
 $target_balance = bittrexbalance($apikey, $apisecret, $target_currency);
 
-$buy = false;
-$sell = false;
-
-if ($target_balance > 0.0000000099) {
-    $sell = true;
-}else {
-    if($default_balance > 0.0005){
-        $buy = true;
-    }
-}
 //Action get current rate
 $current_rate = getMarketInfo($default_currency, $target_currency);
 
@@ -223,6 +213,16 @@ if(count($open_order_obj["result"]) > 0 ){
         $open_order = false;
     }
 
+$buy = false;
+$sell = false;
+
+if ($target_balance > 0.0000000099 && !$open_order) {
+    $sell = true;
+}else {
+    if($default_balance > 0.0005 && !$open_order){
+        $buy = true;
+    }
+}
 
 //$run_risk_count = getenv('RUN_RISK_SELL_LOGIC_COUNT');$file = file_get_contents('myfile.txt');
 $run_risk_count = (int) file_get_contents($file_risk_count);   
@@ -237,6 +237,7 @@ echo("My buy rate in BTC is : ".$buy_rate."\n");
 echo("My sale rate in BTC is : ".$sale_rate."\n");
 echo("My avoid rate in BTC is : ".$avoid_rate."\n\n");
 echo("My default balance in ".$default_currency.' : '.$default_balance."\n");
+echo("My remote balance in ".$default_currency.' : '.$remote_balance."\n");
 echo("My target balance in ".$target_currency.' : '.$target_balance."\n\n");
 echo("Open order size : ".count($open_order_result)."     ");
 echo("is risk sell order? : ".json_encode($is_risk_sell_order)."     ");
@@ -248,9 +249,10 @@ echo("Sell Quantity : ".getSellQuantity($sale_rate, $target_balance)."\n");
 echo("RUN_RISK_SELL_LOGIC_COUNT :".$run_risk_count."     ");
 echo("stop run risk flag :".json_encode($stop_buy_after_risk)."\n");
 
+print_r(json_encode($open_order_obj, JSON_PRETTY_PRINT));
 if($open_order) {
     echo("open order already exists!!! \n");
-    print_r($open_order_obj);
+    //print_r($open_order_obj);
 
     foreach($open_order_result as $key){
         $order_id = $key["OrderUuid"];
