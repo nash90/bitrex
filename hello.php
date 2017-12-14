@@ -10,15 +10,15 @@ $apikey=getenv('BITREX_API_KEY');
 $apisecret=getenv('BITREX_API_SECRET');
 
 $default_currency = 'BTC';
-$target_currency = 'LTC';
+$target_currency = 'BCC';
 
-$buy_rate = 0.0175;
-$sale_rate = 0.0182;
-$avoid_rate = 0.0155;
+$buy_rate = 0.126;
+$sale_rate = 0.136;
+$avoid_rate = 0.12;
 $current_rate = 0;
 
 //$default_balance = 0.001;
-$default_balance = 0.1;
+$default_balance = 0.3;
 $target_balance = 0;
 
 $open_order = false;
@@ -199,7 +199,14 @@ $current_rate = getMarketInfo($default_currency, $target_currency);
 //Action get Open order
 $open_order_obj = getOpenOrder($apikey, $apisecret, $default_currency, $target_currency);
 
-$open_order_result = $open_order_obj["result"];
+$open_order_result = ($open_order_obj) ? $open_order_obj["result"] : [];
+
+if(count($open_order_result) == 0 ){
+    echo "confirming open_order_obj again\n";
+    $open_order_obj = getOpenOrder($apikey, $apisecret, $default_currency, $target_currency);
+    $open_order_result = ($open_order_obj) ? $open_order_obj["result"] : [];
+}
+
 $is_risk_sell_order = false;
 foreach ($open_order_result as $key) {
     if($key["Limit"] <= $avoid_rate){
@@ -257,38 +264,23 @@ if($open_order) {
     foreach($open_order_result as $key){
         $order_id = $key["OrderUuid"];
         if($key["OrderType"] == "LIMIT_SELL"){
-            if($run_risk_sell_logic && $current_rate <= $avoid_rate){
-                
-                $cancel_order = cancel_open_order($apikey, $apisecret, $order_id);
-                if($cancel_order["success"]){
-                    $open_order = false;
-                }
 
-                if($key["Limit"] <= $avoid_rate){
-                    //run_risk_sell_logic(false, true);
-                    
-                }else{
-                    run_risk_sell_logic(true, true);
+            if($key["Limit"] > $avoid_rate){
+                if($current_rate <= $avoid_rate || $key["Limit"] !== $sale_rate){
+                    cancel_open_order($apikey, $apisecret, $order_id);
                 }
             }
-            if($run_sell_logic && $current_rate > $avoid_rate && $key["Limit"] !== $sale_rate){
-                $cancel_order = cancel_open_order($apikey, $apisecret, $order_id);
-                if($cancel_order["success"]){
-                    $open_order = false;
-                }
 
-                run_sell_logic(true);
+            if($key["Limit"] <= $avoid_rate){
+                if($key["Limit"] !== $avoid_rate){
+                    cancel_open_order($apikey, $apisecret, $order_id);
+                }
             }
         }
 
         if($key["OrderType"] == "LIMIT_BUY"){
-            if($run_buy_logic && $key["Limit"] !== $buy_rate){
-                $cancel_order = cancel_open_order($apikey, $apisecret, $order_id);
-                if($cancel_order["success"]){
-                    $open_order = false;
-                }
-
-                run_buy_logic(true);
+            if($key["Limit"] !== $buy_rate){
+                cancel_open_order($apikey, $apisecret, $order_id);
             }
         }
     }
@@ -322,7 +314,7 @@ function run_risk_sell_logic($count_flag, $sell){
     global $current_rate, $sale_rate, $avoid_rate, $open_order;
     if($current_rate <= $avoid_rate && !$open_order && $sell){
         $sell_quantity = getSellQuantity($avoid_rate, $target_balance);
-        riskSellAction($apikey, $apisecret, $default_currency, $target_currency, $sell_quantity, $current_rate);
+        riskSellAction($apikey, $apisecret, $default_currency, $target_currency, $sell_quantity, /*$current_rate*/$avoid_rate);
         if($count_flag){
                 $run_risk_count = $run_risk_count + 1;
                 //putenv("RUN_RISK_SELL_LOGIC_COUNT=".$run_risk_count);
