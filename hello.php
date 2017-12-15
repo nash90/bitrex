@@ -10,15 +10,15 @@ $apikey=getenv('BITREX_API_KEY');
 $apisecret=getenv('BITREX_API_SECRET');
 
 $default_currency = 'BTC';
-$target_currency = 'BCC';
+$target_currency = 'XRP';
 
-$buy_rate = 0.126;
-$sale_rate = 0.136;
-$avoid_rate = 0.12;
+$buy_rate = 0.0000403;
+$sale_rate = 0.0000423;
+$avoid_rate = 0.000035;
 $current_rate = 0;
 
 //$default_balance = 0.001;
-$default_balance = 0.3;
+$default_balance = 0.21;
 $target_balance = 0;
 
 $open_order = false;
@@ -272,7 +272,7 @@ if($open_order) {
             }
 
             if($key["Limit"] <= $avoid_rate){
-                if($key["Limit"] !== $avoid_rate){
+                if($key["Limit"] < $current_rate){
                     cancel_open_order($apikey, $apisecret, $order_id);
                 }
             }
@@ -314,7 +314,7 @@ function run_risk_sell_logic($count_flag, $sell){
     global $current_rate, $sale_rate, $avoid_rate, $open_order;
     if($current_rate <= $avoid_rate && !$open_order && $sell){
         $sell_quantity = getSellQuantity($avoid_rate, $target_balance);
-        riskSellAction($apikey, $apisecret, $default_currency, $target_currency, $sell_quantity, /*$current_rate*/$avoid_rate);
+        riskSellAction($apikey, $apisecret, $default_currency, $target_currency, $sell_quantity, $current_rate);
         if($count_flag){
                 $run_risk_count = $run_risk_count + 1;
                 //putenv("RUN_RISK_SELL_LOGIC_COUNT=".$run_risk_count);
