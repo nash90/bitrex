@@ -15,7 +15,7 @@ $alt_app_settings = json_decode($alt_app_settings);
 $run_buy_logic = $app_settings->app_flag->run_buy_logic_flag;
 $run_sell_logic = $app_settings->app_flag->run_sell_logic_flag;
 $run_risk_sell_logic = $app_settings->app_flag->run_risk_sell_logic_flag;
-$auto_rate_selection = $app_settings->app_flag->auto_rate_selection_flag;
+$auto_rate_selection_flag = $app_settings->app_flag->auto_rate_selection_flag;
 
 $apikey=getenv('BITREX_API_KEY');
 $apisecret=getenv('BITREX_API_SECRET');
@@ -200,6 +200,24 @@ function log_in_file($file_name, $content){
     file_put_contents($file_name, $content, FILE_APPEND | LOCK_EX);
 }
 
+function setAutoRates(){
+    global $buy_rate, $sale_rate, $avoid_rate, $current_rate;
+    global $alt_app_settings;
+
+    $alt_buy_rate = $current_rate - (($alt_app_settings->rate_percent->buy_percent/100) * $current_rate);
+    $buy_rate = $alt_buy_rate;
+    $alt_app_settings->alt_rate->alt_buy_rate = $alt_buy_rate;
+
+    $alt_sale_rate = $current_rate + (($alt_app_settings->rate_percent->sale_percent/100) * $current_rate);
+    $sale_rate = $alt_sale_rate;
+    $alt_app_settings->alt_rate->alt_sale_rate = $alt_sale_rate; 
+
+    $alt_avoid_rate = $current_rate - (($alt_app_settings->rate_percent->avoid_percent/100) * $current_rate);
+    $avoid_rate = $alt_avoid_rate;
+    $alt_app_settings->alt_rate->alt_avoid_rate = $alt_avoid_rate;
+
+}
+
 //Actions get balance
 $remote_balance = bittrexbalance($apikey, $apisecret, $default_currency);
 $target_balance = bittrexbalance($apikey, $apisecret, $target_currency);
@@ -241,6 +259,10 @@ if($run_risk_count >= $stop_buy_after_risk_max_count){
     $stop_buy_after_risk = true;
 }
 
+if($auto_rate_selection_flag && !$open_order){
+    setAutoRates();
+
+}
 //print_r($balance); echo("\n");
 //print_r($getMarketInfo);
 echo("The rate of coin ".$default_currency.'-'.$target_currency." is : ".$current_rate."\n");
@@ -284,6 +306,13 @@ if($open_order) {
         if($key["OrderType"] == "LIMIT_BUY"){
             if($key["Limit"] !== $buy_rate){
                 cancel_open_order($apikey, $apisecret, $order_id);
+                echo("Cancelled because Limit did not match current buy rate \n");
+            }
+
+            $check_rate = $key["Limit"] + ((($alt_app_settings->rate_percent->sale_percent)/100) * $key["Limit"]);
+            if($current_rate > $check_rate){
+                cancel_open_order($apikey, $apisecret, $order_id);
+                echo("Cancelled because the current rate exceed the check_rate \n");
             }
         }
     }
