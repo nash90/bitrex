@@ -15,7 +15,7 @@ $alt_app_settings = json_decode($alt_app_settings);
 $run_buy_logic = $app_settings->app_flag->run_buy_logic_flag;
 $run_sell_logic = $app_settings->app_flag->run_sell_logic_flag;
 $run_risk_sell_logic = $app_settings->app_flag->run_risk_sell_logic_flag;
-$auto_rate_selection = $app_settings->app_flag->auto_rate_selection;
+$auto_rate_selection = $app_settings->app_flag->auto_rate_selection_flag;
 
 $apikey=getenv('BITREX_API_KEY');
 $apisecret=getenv('BITREX_API_SECRET');
@@ -212,17 +212,11 @@ $open_order_obj = getOpenOrder($apikey, $apisecret, $default_currency, $target_c
 
 $open_order_result = ($open_order_obj) ? $open_order_obj["result"] : [];
 
+//bitrex api seems to return old open order status and data sometimes, maybe due to some cache or db replication time
 if(count($open_order_result) == 0 ){
     echo "confirming open_order_obj again\n";
     $open_order_obj = getOpenOrder($apikey, $apisecret, $default_currency, $target_currency);
     $open_order_result = ($open_order_obj) ? $open_order_obj["result"] : [];
-}
-
-$is_risk_sell_order = false;
-foreach ($open_order_result as $key) {
-    if($key["Limit"] <= $avoid_rate){
-        $is_risk_sell_order = true;
-    }
 }
 
 if(count($open_order_obj["result"]) > 0 ){
@@ -242,8 +236,6 @@ if ($target_balance > 0.0000000099 && !$open_order) {
     }
 }
 
-//$run_risk_count = getenv('RUN_RISK_SELL_LOGIC_COUNT');$file = file_get_contents('myfile.txt');
-//$run_risk_count = (int) file_get_contents($file_risk_count); 
 $run_risk_count = (int) $alt_app_settings->others->current_buy_after_risk_count;  
 if($run_risk_count >= $stop_buy_after_risk_max_count){
     $stop_buy_after_risk = true;
@@ -259,7 +251,6 @@ echo("My default balance in ".$default_currency.' : '.$default_balance."\n");
 echo("My remote balance in ".$default_currency.' : '.$remote_balance."\n");
 echo("My target balance in ".$target_currency.' : '.$target_balance."\n\n");
 echo("Open order size : ".count($open_order_result)."     ");
-echo("is risk sell order? : ".json_encode($is_risk_sell_order)."     ");
 echo("Open order flag : ".json_encode($open_order)."\n\n");
 echo("Buy Flag : ".json_encode($buy)."     ");
 echo("Sale Flag : ".json_encode($sell)."\n");
@@ -303,50 +294,58 @@ if($open_order) {
 
 
 
-function run_buy_logic($buy){
-    global $apikey, $apisecret, $default_currency, $target_currency, $default_balance;
-    global $current_rate, $buy_rate, $avoid_rate, $open_order;
-    if(/*$current_rate <= $buy_rate &&*/ $current_rate > $avoid_rate && !$open_order && $buy) {
+function run_buy_logic(){
+    global $apikey, $apisecret;
+    global $default_currency, $target_currency;
+    global $default_balance;
+    global $current_rate, $buy_rate, $avoid_rate;
+
+    if(/*$current_rate <= $buy_rate &&*/ $current_rate > $avoid_rate) {
         $buy_quantity = getBuyQuantity($buy_rate, $default_balance);
         buyAction($apikey, $apisecret, $default_currency, $target_currency, $buy_quantity, $buy_rate);
     }
 }
 
-function run_sell_logic($sell){
-    global $apikey, $apisecret, $default_currency, $target_currency, $target_balance;
-    global $current_rate, $sale_rate, $avoid_rate, $open_order;
-    if(/*$current_rate >= $sale_rate &&*/ !$open_order && $sell){
+function run_sell_logic(){
+    global $apikey, $apisecret;
+    global $default_currency, $target_currency; 
+    global $target_balance;
+    global $current_rate, $sale_rate, $avoid_rate;
+
+    if(/*$current_rate >= $sale_rate &&*/true){
         $sell_quantity = getSellQuantity($sale_rate, $target_balance);
         sellAction($apikey, $apisecret, $default_currency, $target_currency, $sell_quantity, $sale_rate);
     }
 }
 
-function run_risk_sell_logic($count_flag, $sell){
-    global $apikey, $apisecret, $default_currency, $target_currency, $target_balance, $run_risk_count, $alt_app_settings;
-    global $current_rate, $sale_rate, $avoid_rate, $open_order;
-    if($current_rate <= $avoid_rate && !$open_order && $sell){
+function run_risk_sell_logic($count_flag){
+    global $apikey, $apisecret; 
+    global $default_currency, $target_currency; 
+    global $target_balance;
+    global $current_rate, $sale_rate, $avoid_rate; 
+    global $run_risk_count, $alt_app_settings;
+
+    if($current_rate <= $avoid_rate){
         $sell_quantity = getSellQuantity($avoid_rate, $target_balance);
         riskSellAction($apikey, $apisecret, $default_currency, $target_currency, $sell_quantity, $current_rate);
         if($count_flag){
                 $run_risk_count = $run_risk_count + 1;
-                //putenv("RUN_RISK_SELL_LOGIC_COUNT=".$run_risk_count);
-                //file_put_contents($file_risk_count, $run_risk_count);
                 $alt_app_settings->others->current_buy_after_risk_count = $run_risk_count;
                 echo("RUN_RISK_SELL_LOGIC_COUNT  was increased to :".$run_risk_count."\n");
         }
     }
 }
 
-if($run_buy_logic && !$stop_buy_after_risk){
-    run_buy_logic($buy);
+if($run_buy_logic && !$stop_buy_after_risk && $buy){
+    run_buy_logic();
 }
 
-if($run_risk_sell_logic){
-    run_risk_sell_logic(true, $sell);
+if($run_risk_sell_logic && $buy){
+    run_risk_sell_logic(true);
 }
 
-if($run_sell_logic){
-    run_sell_logic($sell);
+if($run_sell_logic && $sell){
+    run_sell_logic();
 }
 
 $alt_app_settings = json_encode($alt_app_settings, JSON_PRETTY_PRINT);
