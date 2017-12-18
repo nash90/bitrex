@@ -5,6 +5,7 @@ echo("\n######### START BOT ############\n");
 $run_buy_logic = true;
 $run_sell_logic = true;
 $run_risk_sell_logic = true;
+$auto_rate_selection = false;
 
 $apikey=getenv('BITREX_API_KEY');
 $apisecret=getenv('BITREX_API_SECRET');
@@ -17,17 +18,17 @@ $sale_rate = 0.0000423;
 $avoid_rate = 0.000035;
 $current_rate = 0;
 
+$stop_buy_after_risk_max_count = 1;
+$file_risk_count = 'risk_sell_logic_count.txt';
 //$default_balance = 0.001;
 $default_balance = 0.21;
-$target_balance = 0;
 
+//init variables 
+$target_balance = 0;
 $open_order = false;
 $trade_count = 0;
-$stop_buy_after_risk_max_count = 1;
 $stop_buy_after_risk = false;
 
-$file_risk_count = 'risk_sell_logic_count.txt';
-$file_processed_log = '';
 
 // ALL Function available 
 
