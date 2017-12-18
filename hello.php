@@ -1,30 +1,40 @@
 <?php 
 //Building A Simple Bittrex Bot: 0.0005
 echo("\n######### START BOT ############\n");
+$file_settings = "settings.conf";
+$file_alt_settings = "alt_settings.conf";
 
-$run_buy_logic = true;
-$run_sell_logic = true;
-$run_risk_sell_logic = true;
-$auto_rate_selection = false;
+//get settings from file and decode to array
+$app_settings = file_get_contents($file_settings);
+$app_settings = json_decode($app_settings);
+
+$alt_app_settings = file_get_contents($file_alt_settings);
+$alt_app_settings = json_decode($alt_app_settings);
+
+//set the variable with value from settings
+$run_buy_logic = $app_settings->app_flag->run_buy_logic_flag;
+$run_sell_logic = $app_settings->app_flag->run_sell_logic_flag;
+$run_risk_sell_logic = $app_settings->app_flag->run_risk_sell_logic_flag;
+$auto_rate_selection = $app_settings->app_flag->auto_rate_selection;
 
 $apikey=getenv('BITREX_API_KEY');
 $apisecret=getenv('BITREX_API_SECRET');
 
-$default_currency = 'BTC';
-$target_currency = 'XRP';
+$default_currency = $app_settings->currency->default_currency;
+$target_currency = $app_settings->currency->target_currency;
 
-$buy_rate = 0.0000403;
-$sale_rate = 0.0000423;
-$avoid_rate = 0.000035;
-$current_rate = 0;
+$buy_rate = $app_settings->fixed_rate->fixed_buy_rate;
+$sale_rate = $app_settings->fixed_rate->fixed_sale_rate;
+$avoid_rate = $app_settings->fixed_rate->fixed_avoid_rate;
 
-$stop_buy_after_risk_max_count = 1;
-$file_risk_count = 'risk_sell_logic_count.txt';
-//$default_balance = 0.001;
-$default_balance = 0.21;
+$stop_buy_after_risk_max_count = $app_settings->others->max_buy_after_risk_count;
+$default_balance = $app_settings->others->default_balance;
+//$file_risk_count = 'risk_sell_logic_count.txt';
+
 
 //init variables 
 $target_balance = 0;
+$current_rate = 0;
 $open_order = false;
 $trade_count = 0;
 $stop_buy_after_risk = false;
@@ -233,7 +243,8 @@ if ($target_balance > 0.0000000099 && !$open_order) {
 }
 
 //$run_risk_count = getenv('RUN_RISK_SELL_LOGIC_COUNT');$file = file_get_contents('myfile.txt');
-$run_risk_count = (int) file_get_contents($file_risk_count);   
+//$run_risk_count = (int) file_get_contents($file_risk_count); 
+$run_risk_count = (int) $alt_app_settings->others->current_buy_after_risk_count;  
 if($run_risk_count >= $stop_buy_after_risk_max_count){
     $stop_buy_after_risk = true;
 }
@@ -311,7 +322,7 @@ function run_sell_logic($sell){
 }
 
 function run_risk_sell_logic($count_flag, $sell){
-    global $apikey, $apisecret, $default_currency, $target_currency, $target_balance, $run_risk_count, $file_risk_count;
+    global $apikey, $apisecret, $default_currency, $target_currency, $target_balance, $run_risk_count, $alt_app_settings;
     global $current_rate, $sale_rate, $avoid_rate, $open_order;
     if($current_rate <= $avoid_rate && !$open_order && $sell){
         $sell_quantity = getSellQuantity($avoid_rate, $target_balance);
@@ -319,7 +330,8 @@ function run_risk_sell_logic($count_flag, $sell){
         if($count_flag){
                 $run_risk_count = $run_risk_count + 1;
                 //putenv("RUN_RISK_SELL_LOGIC_COUNT=".$run_risk_count);
-                file_put_contents($file_risk_count, $run_risk_count);
+                //file_put_contents($file_risk_count, $run_risk_count);
+                $alt_app_settings->others->current_buy_after_risk_count = $run_risk_count;
                 echo("RUN_RISK_SELL_LOGIC_COUNT  was increased to :".$run_risk_count."\n");
         }
     }
@@ -337,6 +349,8 @@ if($run_sell_logic){
     run_sell_logic($sell);
 }
 
+$alt_app_settings = json_encode($alt_app_settings, JSON_PRETTY_PRINT);
+file_put_contents($file_alt_settings, $alt_app_settings);
 echo("\n######### END BOT ############\n");
 
 ?>
