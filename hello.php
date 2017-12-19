@@ -40,6 +40,12 @@ $trade_count = 0;
 $stop_buy_after_risk = false;
 
 
+class MyDB extends SQLite3 {
+  function __construct() {
+     $this->open('app.db');
+  }
+}
+
 // ALL Function available 
 
 function bittrexbalance($apikey, $apisecret, $currency){
@@ -97,6 +103,20 @@ function getOpenOrder($apikey, $apisecret, $fromCurrency, $toCurrency){
     return $obj;
 }
 
+function getOrderDetail($apikey, $apisecret, $order_id){
+//https://bittrex.com/api/v1.1/account/getorder?apikey=API_KEY&uuid=ORDER_ID&nonce=1234
+    $nonce= '&nonce='.time(); 
+    $api_endpoint ='https://bittrex.com/api/v1.1/account/getorder';
+    $uri=$api_endpoint.'?apikey='.$apikey.'&uuid='.$order_id.'&nonce='.$nonce;
+    $sign=hash_hmac('sha512',$uri,$apisecret);
+    $ch = curl_init($uri);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array('apisign:'.$sign));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    $execResult = curl_exec($ch);
+    $obj = json_decode($execResult, true);
+    return $obj;
+}
+
 function buyCoin($apikey, $apisecret, $fromCurrency, $toCurrency, $quantity, $rate){
     //https://bittrex.com/api/v1.1/market/buylimit?apikey=API_KEY&market=BTC-LTC&quantity=1.2&rate=1.3
     $nonce= '&nonce='.time(); 
@@ -109,7 +129,6 @@ function buyCoin($apikey, $apisecret, $fromCurrency, $toCurrency, $quantity, $ra
     $execResult = curl_exec($ch);
     $obj = json_decode($execResult, true);
     print_r($obj);echo("buyCoin\n");
-
     return $obj;
 
 }
@@ -126,7 +145,6 @@ function sellCoin($apikey, $apisecret, $fromCurrency, $toCurrency, $quantity, $r
     $execResult = curl_exec($ch);
     $obj = json_decode($execResult, true);
     print_r($obj);echo("sellCoin\n");
-
     return $obj;
 
 }
@@ -148,6 +166,15 @@ function buyAction ($apikey, $apisecret, $default_currency, $target_currency, $b
     $buy_coin = buyCoin($apikey, $apisecret, $default_currency, $target_currency, $buy_quantity, $buy_rate);
     if($buy_coin["success"] == true){
         echo("\n".$buy_coin["result"]["uuid"]." API Buy Success at rate: ".$buy_rate." : ".$default_currency.'-'.$target_currency." : ".$buy_quantity."\n");
+        $uuid = $buy_coin["result"]["uuid"];
+        $type = "LIMIT_BUY";
+        $open_flag = 1;
+        $sql =<<<EOF
+        INSERT INTO APP_ORDER (ORDER_UUID,ORDER_TYPE,OPEN_FLAG)
+        VALUES ("$uuid", "$type", $open_flag);
+EOF;
+        echo $sql;
+        run_sql($sql);
     }else{
         echo("\nAPI Buy Failed at rate: ".$buy_rate." : ".$default_currency.'-'.$target_currency." : ".$buy_quantity."\n");
     }
@@ -161,6 +188,14 @@ function sellAction($apikey, $apisecret, $default_currency, $target_currency, $s
     $sell_coin = sellCoin($apikey, $apisecret, $default_currency, $target_currency, $sell_quantity, $sale_rate);
     if($sell_coin["success"] == true) {
         echo("\n".$sell_coin["result"]["uuid"]." API Sell Success at rate: ".$sale_rate." : ".$default_currency.'-'.$target_currency." : ".$sell_quantity."\n");
+        $uuid = $sell_coin["result"][0]["uuid"];
+        $type = "LIMIT_SELL";
+        $open_flag = 1;
+        $sql =<<<EOF
+        INSERT INTO APP_ORDER (ORDER_UUID,ORDER_TYPE,OPEN_FLAG)
+        VALUES ("$uuid", "$type", $open_flag);
+EOF;
+        run_sql($sql);
     }else {
         echo("\nAPI Sell Failed at rate: ".$sale_rate." : ".$default_currency.'-'.$target_currency." : ".$sell_quantity."\n");
     }
@@ -200,6 +235,47 @@ function log_in_file($file_name, $content){
     file_put_contents($file_name, $content, FILE_APPEND | LOCK_EX);
 }
 
+function run_sql($sql){
+    global $db;
+
+    $ret = $db->exec($sql);
+    if(!$ret){
+      echo $db->lastErrorMsg();
+    } else {
+      echo "sql execution success\n";
+    }
+}
+
+function querySql($sql){
+    global $db;
+
+    $ret = $db->query($sql);
+    if(!$ret){
+      echo $db->lastErrorMsg();
+    } else {
+      echo "sql Query success\n";
+    }
+
+    return $ret;
+}
+
+function getOrderData($obj){
+    $data = [];
+   while($row = $obj->fetchArray(SQLITE3_ASSOC) ) {
+        $item = array(
+            "ID" => $row["ID"],
+            "ORDER_UUID" => $row["ORDER_UUID"],
+            "ORDER_TYPE" => $row["ORDER_TYPE"],
+            "OPEN_FLAG" => $row["OPEN_FLAG"],
+            "RESPONSE_JSON" => $row["RESPONSE_JSON"],
+            "RATE_JSON" => $row["RATE_JSON"]
+            );
+        array_push($data, $item);
+   }
+
+   return $data;
+}
+
 function setAutoRates(){
     global $buy_rate, $sale_rate, $avoid_rate, $current_rate;
     global $alt_app_settings;
@@ -218,6 +294,25 @@ function setAutoRates(){
 
 }
 
+$db = new MyDB();
+if(!$db) {
+  echo $db->lastErrorMsg();
+} else {
+  echo "Opened database successfully\n";
+}
+
+$sql =<<<EOF
+      CREATE TABLE IF NOT EXISTS APP_ORDER
+      (ID INTEGER PRIMARY KEY     NOT NULL,
+      ORDER_UUID      CHAR(50)    NOT NULL,
+      ORDER_TYPE            TEXT     NOT NULL,
+      OPEN_FLAG       BIT     NOT NULL,
+      RESPONSE_JSON   VARCHAR,
+      RATE_JSON VARCHAR);
+EOF;
+
+run_sql($sql);
+
 //Actions get balance
 $remote_balance = bittrexbalance($apikey, $apisecret, $default_currency);
 $target_balance = bittrexbalance($apikey, $apisecret, $target_currency);
@@ -228,16 +323,23 @@ $current_rate = getMarketInfo($default_currency, $target_currency);
 //Action get Open order
 $open_order_obj = getOpenOrder($apikey, $apisecret, $default_currency, $target_currency);
 
-$open_order_result = ($open_order_obj) ? $open_order_obj["result"] : [];
+$open_order_sql = "SELECT * FROM APP_ORDER WHERE OPEN_FLAG=1;"; 
+$open_order_db = querySql($open_order_sql);
+$open_order_data = ($open_order_db) ? getOrderData($open_order_db) : [];
+
+
+//$open_order_result = ($open_order_obj) ? $open_order_obj["result"] : [];
+$open_order_result = $open_order_data;
 
 //bitrex api seems to return old open order status and data sometimes, maybe due to some cache or db replication time
+/*
 if(count($open_order_result) == 0 ){
     echo "confirming open_order_obj again\n";
     $open_order_obj = getOpenOrder($apikey, $apisecret, $default_currency, $target_currency);
     $open_order_result = ($open_order_obj) ? $open_order_obj["result"] : [];
-}
+}*/
 
-if(count($open_order_obj["result"]) > 0 ){
+if(count($open_order_result) > 0 ){
         $open_order = true; 
     } else {
         $open_order = false;
@@ -281,13 +383,22 @@ echo("Sell Quantity : ".getSellQuantity($sale_rate, $target_balance)."\n");
 echo("RUN_RISK_SELL_LOGIC_COUNT :".$run_risk_count."     ");
 echo("stop run risk flag :".json_encode($stop_buy_after_risk)."\n");
 
-print_r(json_encode($open_order_obj, JSON_PRETTY_PRINT));
+//print_r(json_encode($open_order_obj, JSON_PRETTY_PRINT));
 if($open_order) {
     echo("open order already exists!!! \n");
     //print_r($open_order_obj);
 
     foreach($open_order_result as $key){
-        $order_id = $key["OrderUuid"];
+        $order_id = $key["ORDER_UUID"];
+
+        $order_detail = getOrderDetail($apikey, $apisecret, $order_id);
+        print_r($order_detail);
+        $order_detail = $order_detail["result"];
+
+        if($order_detail["IsOpen"]){
+
+        }
+        /*
         if($key["OrderType"] == "LIMIT_SELL"){
 
             if($key["Limit"] > $avoid_rate){
@@ -297,7 +408,7 @@ if($open_order) {
             }
 
             if($key["Limit"] <= $avoid_rate){
-                if($key["Limit"] < $current_rate){
+                if($key["Limit"] > $current_rate){
                     cancel_open_order($apikey, $apisecret, $order_id);
                 }
             }
@@ -309,12 +420,12 @@ if($open_order) {
                 echo("Cancelled because Limit did not match current buy rate \n");
             }
 
-            $check_rate = $key["Limit"] + ((($alt_app_settings->rate_percent->sale_percent)/100) * $key["Limit"]);
-            if($current_rate > $check_rate){
-                cancel_open_order($apikey, $apisecret, $order_id);
-                echo("Cancelled because the current rate exceed the check_rate \n");
-            }
-        }
+            //$check_rate = $key["Limit"] + ((($alt_app_settings->rate_percent->sale_percent)/100) * $key["Limit"]);
+            //if($current_rate > $check_rate){
+            //    cancel_open_order($apikey, $apisecret, $order_id);
+            //    echo("Cancelled because the current rate exceed the check_rate \n");
+            //}
+        }*/
     }
 
     echo("\n######### END BOT ############\n");
