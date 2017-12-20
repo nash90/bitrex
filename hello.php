@@ -313,15 +313,15 @@ function setAutoRates(){
     if($buy && !$open_order){
         $alt_buy_rate = $current_rate - (($alt_app_settings->rate_percent->buy_percent/100) * $current_rate);
         $buy_rate = round($alt_buy_rate, 8);
-        $alt_app_settings->alt_rate->alt_buy_rate = $alt_buy_rate;
+        $alt_app_settings->alt_rate->alt_buy_rate = $buy_rate;
 
         $alt_sale_rate = $current_rate + (($alt_app_settings->rate_percent->sale_percent/100) * $current_rate);
         $sale_rate = round($alt_sale_rate, 8);
-        $alt_app_settings->alt_rate->alt_sale_rate = $alt_sale_rate; 
+        $alt_app_settings->alt_rate->alt_sale_rate = $sale_rate; 
 
         $alt_avoid_rate = $current_rate - (($alt_app_settings->rate_percent->avoid_percent/100) * $current_rate);
         $avoid_rate = round($alt_avoid_rate, 8);
-        $alt_app_settings->alt_rate->alt_avoid_rate = $alt_avoid_rate;
+        $alt_app_settings->alt_rate->alt_avoid_rate = $avoid_rate;
     }
 
     if($sell || $open_order){
@@ -457,7 +457,7 @@ if($open_order) {
             }
 
             if($order_detail["Type"] == "LIMIT_BUY"){
-                if(!$auto_rate_selection_flag && $order_detail["Limit"] !== $buy_rate){
+                if(/*!$auto_rate_selection_flag &&*/ $order_detail["Limit"] !== $buy_rate){
                     cancel_open_order($apikey, $apisecret, $order_id);
                     echo("Cancelled because Limit did not match current buy rate \n");
                 }
