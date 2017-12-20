@@ -161,7 +161,7 @@ function getBuyQuantity($rate, $balance){
 
 function buyAction ($apikey, $apisecret, $default_currency, $target_currency, $buy_quantity, $buy_rate){
     echo("\n######### EXECUTED BUY ACTION ############\n");
-    global $open_order;
+    global $open_order, $rates_array;
     
     $buy_coin = buyCoin($apikey, $apisecret, $default_currency, $target_currency, $buy_quantity, $buy_rate);
     if($buy_coin["success"] == true){
@@ -169,11 +169,12 @@ function buyAction ($apikey, $apisecret, $default_currency, $target_currency, $b
         $uuid = $buy_coin["result"]["uuid"];
         $type = "LIMIT_BUY";
         $open_flag = 1;
+        $rates_json = json_encode($rates_array);
         $sql =<<<EOF
-        INSERT INTO APP_ORDER (ORDER_UUID,ORDER_TYPE,OPEN_FLAG)
-        VALUES ("$uuid", "$type", $open_flag);
+INSERT INTO APP_ORDER (ORDER_UUID,ORDER_TYPE,OPEN_FLAG,RATE_JSON)
+VALUES ('$uuid', '$type', $open_flag, '$rates_json');
 EOF;
-        echo $sql;
+        //echo $sql;
         run_sql($sql);
     }else{
         echo("\nAPI Buy Failed at rate: ".$buy_rate." : ".$default_currency.'-'.$target_currency." : ".$buy_quantity."\n");
@@ -183,18 +184,20 @@ EOF;
 
 function sellAction($apikey, $apisecret, $default_currency, $target_currency, $sell_quantity, $sale_rate){
     echo("\n######### EXECUTED SELL ACTION ############\n");
-    global $open_order;
+    global $open_order, $rates_array;
     
     $sell_coin = sellCoin($apikey, $apisecret, $default_currency, $target_currency, $sell_quantity, $sale_rate);
     if($sell_coin["success"] == true) {
         echo("\n".$sell_coin["result"]["uuid"]." API Sell Success at rate: ".$sale_rate." : ".$default_currency.'-'.$target_currency." : ".$sell_quantity."\n");
-        $uuid = $sell_coin["result"][0]["uuid"];
+        $uuid = $sell_coin["result"]["uuid"];
         $type = "LIMIT_SELL";
         $open_flag = 1;
+        $rates_json = json_encode($rates_array);
         $sql =<<<EOF
-        INSERT INTO APP_ORDER (ORDER_UUID,ORDER_TYPE,OPEN_FLAG)
-        VALUES ("$uuid", "$type", $open_flag);
+INSERT INTO APP_ORDER (ORDER_UUID,ORDER_TYPE,OPEN_FLAG,RATE_JSON)
+VALUES ('$uuid', '$type', $open_flag, '$rates_json');
 EOF;
+        //echo $sql;
         run_sql($sql);
     }else {
         echo("\nAPI Sell Failed at rate: ".$sale_rate." : ".$default_currency.'-'.$target_currency." : ".$sell_quantity."\n");
@@ -238,17 +241,19 @@ function log_in_file($file_name, $content){
 function run_sql($sql){
     global $db;
 
+    echo $sql."\n\n";
     $ret = $db->exec($sql);
     if(!$ret){
       echo $db->lastErrorMsg();
     } else {
-      echo "sql execution success\n";
+      echo "sql execution success\n"; 
     }
 }
 
 function querySql($sql){
     global $db;
 
+    echo $sql."\n\n";
     $ret = $db->query($sql);
     if(!$ret){
       echo $db->lastErrorMsg();
@@ -302,13 +307,13 @@ if(!$db) {
 }
 
 $sql =<<<EOF
-      CREATE TABLE IF NOT EXISTS APP_ORDER
-      (ID INTEGER PRIMARY KEY     NOT NULL,
-      ORDER_UUID      CHAR(50)    NOT NULL,
-      ORDER_TYPE            TEXT     NOT NULL,
-      OPEN_FLAG       BIT     NOT NULL,
-      RESPONSE_JSON   VARCHAR,
-      RATE_JSON VARCHAR);
+CREATE TABLE IF NOT EXISTS APP_ORDER
+(ID INTEGER PRIMARY KEY NOT NULL,
+ORDER_UUID CHAR(50) NOT NULL,
+ORDER_TYPE TEXT NOT NULL,
+OPEN_FLAG BIT NOT NULL,
+RESPONSE_JSON VARCHAR,
+RATE_JSON VARCHAR);
 EOF;
 
 run_sql($sql);
@@ -326,18 +331,10 @@ $open_order_obj = getOpenOrder($apikey, $apisecret, $default_currency, $target_c
 $open_order_sql = "SELECT * FROM APP_ORDER WHERE OPEN_FLAG=1;"; 
 $open_order_db = querySql($open_order_sql);
 $open_order_data = ($open_order_db) ? getOrderData($open_order_db) : [];
-
+//print_r($open_order_data);
 
 //$open_order_result = ($open_order_obj) ? $open_order_obj["result"] : [];
 $open_order_result = $open_order_data;
-
-//bitrex api seems to return old open order status and data sometimes, maybe due to some cache or db replication time
-/*
-if(count($open_order_result) == 0 ){
-    echo "confirming open_order_obj again\n";
-    $open_order_obj = getOpenOrder($apikey, $apisecret, $default_currency, $target_currency);
-    $open_order_result = ($open_order_obj) ? $open_order_obj["result"] : [];
-}*/
 
 if(count($open_order_result) > 0 ){
         $open_order = true; 
@@ -365,6 +362,13 @@ if($auto_rate_selection_flag && !$open_order){
     setAutoRates();
 
 }
+
+$rates_array = array(
+    "buy_rate" => $buy_rate,
+    "sale_rate" => $sale_rate,
+    "avoid_rate" => $avoid_rate
+    );
+
 //print_r($balance); echo("\n");
 //print_r($getMarketInfo);
 echo("The rate of coin ".$default_currency.'-'.$target_currency." is : ".$current_rate."\n");
@@ -392,11 +396,37 @@ if($open_order) {
         $order_id = $key["ORDER_UUID"];
 
         $order_detail = getOrderDetail($apikey, $apisecret, $order_id);
-        print_r($order_detail);
+        $order_detail_json = json_encode($order_detail, JSON_PRETTY_PRINT);
+        print_r($order_detail_json);
         $order_detail = $order_detail["result"];
 
         if($order_detail["IsOpen"]){
+            if($order_detail["Type"] == "LIMIT_SELL"){
 
+                if($order_detail["Limit"] > $avoid_rate){
+                    if($current_rate <= $avoid_rate || $order_detail["Limit"] !== $sale_rate){
+                        cancel_open_order($apikey, $apisecret, $order_id);
+                    }
+                }
+
+                if($order_detail["Limit"] <= $avoid_rate){
+                    if($order_detail["Limit"] > $current_rate){
+                        cancel_open_order($apikey, $apisecret, $order_id);
+                    }
+                }
+            }
+
+            if($order_detail["Type"] == "LIMIT_BUY"){
+                if($order_detail["Limit"] !== $buy_rate){
+                    cancel_open_order($apikey, $apisecret, $order_id);
+                    echo("Cancelled because Limit did not match current buy rate \n");
+                }
+            }            
+
+        }
+        if($order_detail["IsOpen"] === false){
+            $sql = "UPDATE APP_ORDER SET OPEN_FLAG=0, RESPONSE_JSON='$order_detail_json' WHERE ORDER_UUID='$order_id';";
+            querySql($sql);
         }
         /*
         if($key["OrderType"] == "LIMIT_SELL"){
