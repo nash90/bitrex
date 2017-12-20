@@ -1,1 +1,1 @@
-php hello.php > log.txt
+php hello.php >> log.txt
