@@ -319,11 +319,11 @@ function setAutoRates(){
         $dynamic_percent = $alt_app_settings->rate_percent->dynamic_percent;
         $dynamic_limit = $alt_app_settings->alt_rate->dynamic_limit;
 
-        if($current_rate > $dynamic_limit){
+        if($current_rate > $dynamic_limit || $current_rate < $dynamic_rate || $dynamic_rate === 0){
             $dynamic_rate = $current_rate;
             $alt_app_settings->alt_rate->dynamic_rate = $dynamic_rate;
 
-            $dynamic_limit = $dynamic_rate + (($dynamic_percent/100)* $dynamic_rate);
+            $dynamic_limit = round($dynamic_rate + (($dynamic_percent/100)* $dynamic_rate), 8);
             $alt_app_settings->alt_rate->dynamic_limit = $dynamic_limit;            
         }
 
