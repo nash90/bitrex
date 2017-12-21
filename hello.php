@@ -36,6 +36,8 @@ $default_balance = $app_settings->others->default_balance;
 //init global variables 
 $target_balance = 0;
 $current_rate = 0;
+$dynamic_rate = 0;
+$dynamic_limit = 0;
 $open_order = false;
 $trade_count = 0;
 $stop_buy_after_risk = false;
@@ -308,19 +310,32 @@ function getOrderData($obj){
 }
 
 function setAutoRates(){
-    global $buy_rate, $sale_rate, $avoid_rate, $current_rate;
+    global $buy_rate, $sale_rate, $avoid_rate, $current_rate, $dynamic_rate, $dynamic_limit;
     global $alt_app_settings;
     global $buy, $sell, $open_order;
+
     if($buy && !$open_order){
-        $alt_buy_rate = $current_rate - (($alt_app_settings->rate_percent->buy_percent/100) * $current_rate);
+        $dynamic_rate = $alt_app_settings->alt_rate->dynamic_rate;
+        $dynamic_percent = $alt_app_settings->rate_percent->dynamic_percent;
+        $dynamic_limit = $alt_app_settings->alt_rate->dynamic_limit;
+
+        if($current_rate > $dynamic_limit){
+            $dynamic_rate = $current_rate;
+            $alt_app_settings->alt_rate->dynamic_rate = $dynamic_rate;
+
+            $dynamic_limit = $dynamic_rate + (($dynamic_percent/100)* $dynamic_rate);
+            $alt_app_settings->alt_rate->dynamic_limit = $dynamic_limit;            
+        }
+
+        $alt_buy_rate = $dynamic_rate - (($alt_app_settings->rate_percent->buy_percent/100) * $dynamic_rate);
         $buy_rate = round($alt_buy_rate, 8);
         $alt_app_settings->alt_rate->alt_buy_rate = $buy_rate;
 
-        $alt_sale_rate = $current_rate + (($alt_app_settings->rate_percent->sale_percent/100) * $current_rate);
+        $alt_sale_rate = $dynamic_rate + (($alt_app_settings->rate_percent->sale_percent/100) * $dynamic_rate);
         $sale_rate = round($alt_sale_rate, 8);
         $alt_app_settings->alt_rate->alt_sale_rate = $sale_rate; 
 
-        $alt_avoid_rate = $current_rate - (($alt_app_settings->rate_percent->avoid_percent/100) * $current_rate);
+        $alt_avoid_rate = $dynamic_rate - (($alt_app_settings->rate_percent->avoid_percent/100) * $dynamic_rate);
         $avoid_rate = round($alt_avoid_rate, 8);
         $alt_app_settings->alt_rate->alt_avoid_rate = $avoid_rate;
     }
@@ -329,6 +344,8 @@ function setAutoRates(){
         $buy_rate = $alt_app_settings->alt_rate->alt_buy_rate;
         $sale_rate = $alt_app_settings->alt_rate->alt_sale_rate;
         $avoid_rate =  $alt_app_settings->alt_rate->alt_avoid_rate;
+        $dynamic_rate = $alt_app_settings->alt_rate->dynamic_rate;
+        $dynamic_limit = $alt_app_settings->alt_rate->dynamic_limit;
     }
 
 }
@@ -420,7 +437,9 @@ $rates_array = array(
     "buy_rate" => $buy_rate,
     "sale_rate" => $sale_rate,
     "avoid_rate" => $avoid_rate,
-    "current_rate" => $current_rate
+    "current_rate" => $current_rate,
+    "dynamic_rate" => $dynamic_rate,
+    "dynamic_limit" => $dynamic_limit
     );
 
 //When a open order already exist perform following logics
@@ -467,8 +486,8 @@ if($open_order) {
                 }
 
                 if($auto_rate_selection_flag){
-                    //$check_rate = $sale_rate;
-                    $check_rate = $sale_rate + (($alt_app_settings->rate_percent->buy_percent/100) * $sale_rate);
+                    $check_rate = $dynamic_limit;
+                    //$check_rate = $sale_rate + (($alt_app_settings->rate_percent->buy_percent/100) * $sale_rate);
                     echo("Check Rate is :".$check_rate."\n");
                     if($current_rate > $check_rate){
                         cancel_open_order($apikey, $apisecret, $order_id);
