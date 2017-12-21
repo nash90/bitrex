@@ -44,6 +44,7 @@ $sell = false;
 $db = null;
 $run_risk_count = 0;
 $rates_array = null;
+$order_market = $default_currency.'-'.$target_currency;
 
 
 //Common logs
@@ -203,7 +204,7 @@ function getBuyQuantity($rate, $balance){
 
 function buyAction ($apikey, $apisecret, $default_currency, $target_currency, $buy_quantity, $buy_rate){
     echo("\n######### EXECUTED BUY ACTION ############\n");
-    global $open_order, $rates_array;
+    global $open_order, $rates_array, $order_market;
     
     $buy_coin = buyCoin($apikey, $apisecret, $default_currency, $target_currency, $buy_quantity, $buy_rate);
     if($buy_coin["success"] == true){
@@ -213,8 +214,8 @@ function buyAction ($apikey, $apisecret, $default_currency, $target_currency, $b
         $open_flag = 1;
         $rates_json = json_encode($rates_array, JSON_PRETTY_PRINT);
         $sql =<<<EOF
-INSERT INTO APP_ORDER (ORDER_UUID,ORDER_TYPE,OPEN_FLAG,RATE_JSON)
-VALUES ('$uuid', '$type', $open_flag, '$rates_json');
+INSERT INTO APP_ORDER (ORDER_UUID,ORDER_TYPE,ORDER_MARKET,OPEN_FLAG,RATE_JSON)
+VALUES ('$uuid', '$type', '$order_market', $open_flag, '$rates_json');
 EOF;
         //echo $sql;
         run_sql($sql, true);
@@ -226,7 +227,7 @@ EOF;
 
 function sellAction($apikey, $apisecret, $default_currency, $target_currency, $sell_quantity, $sale_rate){
     echo("\n######### EXECUTED SELL ACTION ############\n");
-    global $open_order, $rates_array;
+    global $open_order, $rates_array, $order_market;
     
     $sell_coin = sellCoin($apikey, $apisecret, $default_currency, $target_currency, $sell_quantity, $sale_rate);
     if($sell_coin["success"] == true) {
@@ -236,8 +237,8 @@ function sellAction($apikey, $apisecret, $default_currency, $target_currency, $s
         $open_flag = 1;
         $rates_json = json_encode($rates_array, JSON_PRETTY_PRINT);
         $sql =<<<EOF
-INSERT INTO APP_ORDER (ORDER_UUID,ORDER_TYPE,OPEN_FLAG,RATE_JSON)
-VALUES ('$uuid', '$type', $open_flag, '$rates_json');
+INSERT INTO APP_ORDER (ORDER_UUID,ORDER_TYPE,ORDER_MARKET,OPEN_FLAG,RATE_JSON)
+VALUES ('$uuid', '$type', '$order_market', $open_flag, '$rates_json');
 EOF;
         //echo $sql;
         run_sql($sql, true);
@@ -359,6 +360,7 @@ CREATE TABLE IF NOT EXISTS APP_ORDER
 (ID INTEGER PRIMARY KEY NOT NULL,
 ORDER_UUID CHAR(50) NOT NULL,
 ORDER_TYPE TEXT NOT NULL,
+ORDER_MARKET TEXT NOT NULL,
 OPEN_FLAG BIT NOT NULL,
 RESPONSE_JSON VARCHAR,
 RATE_JSON VARCHAR);
@@ -368,7 +370,9 @@ EOF;
 }
 
 function getOpenOrderFromDB(){
-    $open_order_sql = "SELECT * FROM APP_ORDER WHERE OPEN_FLAG=1;"; 
+    global $order_market; 
+
+    $open_order_sql = "SELECT * FROM APP_ORDER WHERE OPEN_FLAG=1 AND ORDER_MARKET='$order_market';"; 
     $open_order_db = querySql($open_order_sql);
 
     return ($open_order_db) ? getOrderData($open_order_db) : [];
